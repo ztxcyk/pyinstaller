@@ -1,0 +1,165 @@
+
+
+url = 'https://sourceforge.net/projects/mingw-w64/files/'\
+    'Toolchains%20targetting%20Win64/Personal%20Builds/mingw-builds/'\
+    '6.2.0/threads-posix/sjlj/'\
+    'x86_64-6.2.0-release-posix-sjlj-rt_v5-rev1.7z'
+
+waf extension:
+      conf.load('c_cross_gnu')
+  in waflib/extras/c_cross_gnu.py
+
+
+
+
+http://www.hurryupandwait.io/blog/in-search-of-a-light-weight-windows-vagrant-box
+
+
+objdump -x -D Windows-32bit/run_d.exe > /tmp/2.txt
+
+cd /vagrant/PyInstaller/bootloader/
+for i in */Windows-*bit/*.exe ; do
+	objdump -x -D $i > $i.txt
+done
+
+
+zlib für mingw: libz-mingw-w64-dev (nicht in Debian jessie)
+
+
+Cross-compiling from Linux to Windows
+--------------------------------------------
+
+arch=x86_64 options=--target-arch=64bit
+arch=i686   options=--target-arch=32bit
+python ./waf distclean configure build_release \
+   CC=$arch-w64-mingw32-gcc WINRC=$arch-w64-mingw32-windres \
+   STRIP=$arch-w64-mingw32-strip $options
+
+Das wscript file braucht nur einen Änderung: Die Art, wie die
+Plattform entschieden wird.
+
+Pakete unter Mageia: mingw64-gcc mingw32-gcc
+    Die binutils liegen dann in /usr/i686-w64-mingw32/bin/ und mit
+    ARCH-PREFIX in in /usr/bin. gcc, ar, nm, goc und ranlib aber nur
+    mit ARCH-PREFIX in in /usr/bin
+
+Pakete unter Debian: gcc-mingw-w64 (Meta-Package für 32bit und 64bit
+   targets)
+   Alle Binaries liegen mit ARCH-PREFIX und THREADING-POSTFIX in
+   /usr/bin. Ausserdem gitbt es "alternatives", ohne
+   THREADING-POSTFIX, die per default auf die win32 Version zeigen.
+
+
+mkdir macOSX/
+# Download XCode_7.3.1.dmg into macOSX/
+vagrant up build-darwin-sdk
+scp build-darwin-sdk:/tmp/osxcross.tar.bz2 macOSX/
+vagrant destroy -f build-darwin-sdk
+
+
+Cross compilering for target OSX
+==================================
+
+Preperation: Get SDK and build tools
+
+----------------------------------------
+This uses the very helpful tools from OSXcross
+https://github.com/tpoechtrager/osxcross
+
+
+# these are typically installed already on a GNU/Linux system
+apt-get install -y cmake make sed kmod
+apt-get install -y git fuse clang
+# requirements for darling-dmg (not listed in tools/get_dependencies.sh)
+apt-get libxml2-dev libicu-dev libssl-dev libbz2-dev libfuse-dev
+
+
+git clone --depth 1 https://github.com/tpoechtrager/osxcross.git
+cd osxcross
+
+# install requirements for cctools
+sudo tools/get_dependencies.sh
+
+sudo mkdir /opt/osxcross
+chown vagrant: /opt/osxcross
+sed -i 's!^TARGET_DIR=.*!TARGET_DIR=/opt/osxcross!' tools/tools.sh
+
+PATH=$PATH:/sbin:/usr/sbin
+./tools/gen_sdk_package_darling_dmg.sh /vagrant/macos/Xcode_7.3.1.dmg
+
+mv MacOSX*.tar.* tarballs/
+
+UNATTENDED=1 ./build.sh
+
+~/osxcross/target -> Archiv, Archiv auf nächter VM installieren
+
+
+Building the Bootloader
+------------------------------
+
+PATH=~/osxcross/target/bin/:$PATH
+python ./waf CC=x86_64-apple-darwin15-clang all
+
+Verifying results
+------------------------
+
+
+alias otool=/vagrant/osxcross/bin/x86_64-apple-darwin15-otool
+cd /vagrant/PyInstaller/bootloader/
+for i in Darwin-*bit/{run,runw,run_d,runw_d} ; do
+	otool -aSfhlLDtdOrITRMHGCPvV $i > $i.txt
+	# -q -Q
+done
+
+ausserhalb:
+vagrant scp 'darwin64:/vagrant/PyInstaller/bootloader/Darwin-*bit/' /tmp
+
+
+----------------------
+
+Using MinGW-w64 in a Vagrant Windows machine
+
+Prelude
+
+As you may know, I'm one of the maintainers of <a
+href="http://pyinstaller.org/">PyInstaller</a>, a tool for freezing
+(packages) Python programs into stand-alone executables. For each
+supported target platform PyInstaller includes a pre-compiled <a
+href="http://pyinstaller.readthedocs.io/en/stable/advanced-topics.html#the-bootstrap-process-in-detail">”bootloader“</a>
+which prepares everything for running Python code at run-time. For the
+last releases, the bootloader was compiler by some co-maintainer for
+all platforms, but he is very busy currently.
+
+So I'm in the need of being able to build the bootloader for Linux (32
+and 64 bit) Windows (32 and 64 bit) and OS X. Of course building for
+Linux is no problem, and about OS X I will take care later.
+
+While PyInstaller supports building the bootloader for Windows using
+either Visual Studio or MinGW,
+cross-compiling with MinGW is not yet possible. So I went ahead for
+building with MinGW in a virtual machine. Fortunatly <a
+href="https://borgbackup.readthedocs.io/en/stable/">BorgBackup</a>
+provides a Vagrantfile for a Windows machine – and since BorgBackup is
+build using PyInstaller, this looks like a good starting-point.
+
+But, well it was not really. Althoug most of the problems that arose are
+caused by restrictions of the virtual box provided by Microsft and by
+restrictions of Vagrant for Windows guests on Linux hosts.
+
+The BorgBackup's Vagrantfile
+
+The BorgBackup's Vagrantfile uses rsync for shared folders to avoid
+any changes to leak back from the guest to the host. The machine, as
+provided by Microsoft does not include rsync. So the first "vagrant
+up" is bont to fail and you need to run "provision" as a separate step
+instead of passing "--provision" to "vagrant up". For this it installs
+Cygwin, a Cygwin-based SSH server, and rsync. Since the machine is set
+up for password authentication,
+
+
+
+
+--------
+
+http://stackoverflow.com/questions/3943412/can-i-link-msvcrt-statically-with-mingw
+-> empfiehlt newlib

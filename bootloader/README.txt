@@ -102,3 +102,58 @@ Some code for OS X prepared, but the box does not start correctly. If
 you have experience with OS X please help improving it. We are also
 interested in cross-building for OS X.
 
+
+
+
+
+wget -O osxcross.tar.gz \
+     https://github.com/tpoechtrager/osxcross/archive/master.tar.gz
+tar xzf osxcross.tar.gz
+rm -f osxcross.tar.gz
+cd osxcross-master
+
+
+# SDK
+sudo apt-get install -y cmake libxml2-dev fuse
+# cross compiling
+sudo apt-get install -y clang
+
+
+https://github.com/tpoechtrager/osxcross#packaging-the-sdk
+Download XCode 8.2
+
+
+http://www.sandroid.org/imcross/
+
+https://stackoverflow.com/questions/8712352/linux-mach-o-disassembler
+
+
+
+https://en.wikipedia.org/wiki/Xar_%28archiver%29
+
+
+
+
+defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool FALSE
+id=$(id -u vagrant)
+for srv in user/$id/com.apple.cloudpaird \
+         user/$id/com.apple.Maps.mapspushd.icloud \
+         user/$id/com.apple.cloudd.cache-delete \
+         user/$id/com.apple.security.cloudkeychainproxy3 \
+         user/$id/com.apple.cloudfamilyrestrictionsd \
+         user/$id/com.apple.icloud.fmfd \
+         user/$id/com.apple.cloudphotosd.push \
+         user/$id/com.apple.icloudusernotification.agent \
+         user/$id/com.apple.icloud.fmfd.aps \
+         user/$id/com.apple.cloudphotosd \
+         user/$id/com.apple.cloudd \
+         user/$id/com.apple.SafariCloudHistoryPushAgent \
+         user/$id/com.apple.AirPlayUIAgent \
+         user/$id/com.apple.bird \
+         user/$id/com.adobe.AAM.Scheduler-1.0 \
+         user/$id/com.google.keystone.agent \
+		 system/com.microsoft.office.licensing.helper ; do
+    launchctl disable $srv
+    launchctl kill KILL $srv
+done
+
