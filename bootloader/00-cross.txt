@@ -163,3 +163,31 @@ up for password authentication,
 
 http://stackoverflow.com/questions/3943412/can-i-link-msvcrt-statically-with-mingw
 -> empfiehlt newlib
+
+newlib cross build:
+
+http://www.ifp.illinois.edu/~nakazato/tips/xgcc.html
+
+
+sudo cp -a /tmp/usr/lib/libc.a /usr/$TARGET/lib/libnewlib.a
+
+
+--disable-newlib-supplied-syscalls
+
+cd /tmp
+wget ftp://sourceware.org/pub/newlib/newlib-2.5.0.tar.gz
+tar xzf newlib-*.tar.gz
+rm -f newlib-*.tar.gz
+cd newlib-*/newlib/
+
+TARGET=i686-w64-mingw32
+#mkdir $TARGET
+#cd $TARGET
+CC=$TARGET-gcc ./configure --host=$TARGET --disable-newlib-supplied-syscalls
+make -C libc
+
+--disable-dependency-tracking
+
+            ctx.env.append_value('LINKFLAGS', '-nostdlib')
+            ctx.env.append_value('LINKFLAGS', '-Wl,--exclude-libs,msvcrt.a')
+-Wl,-eWinMain
