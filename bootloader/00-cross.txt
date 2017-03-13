@@ -191,3 +191,109 @@ make -C libc
             ctx.env.append_value('LINKFLAGS', '-nostdlib')
             ctx.env.append_value('LINKFLAGS', '-Wl,--exclude-libs,msvcrt.a')
 -Wl,-eWinMain
+
+
+Funktionen aus msvcrt.dll
+===============================
+__argc
+__dllonexit				not used by PyInstaller
+__lconv_init			not used by PyInstaller
+__set_app_type			not used by PyInstaller
+__setusermatherr		not used by PyInstaller
+__wargv
+__wgetmainargs	not used by PyInstaller
+__winitenv		not used by PyInstaller
+_amsg_exit
+
+_findclose		FindClose (32-Bit C Run Time)
+_fmode			-- (noch nichtmal erwähnt) not used by PyInstaller
+_get_osfhandle	-
+_initterm		not used by PyInstaller
+_iob			not used by PyInstaller
+_lock			not used by PyInstaller
+_unlock			not used by PyInstaller
+_wcmdln			not used by PyInstaller
+
+_wfindfirst		ohne w: FindFirstFile (32-Bit C Run Time)
+_wfindnext		ohne w: FindNextFile (32-Bit C Run Time)
+
+_stat			-
+_wfopen
+_setmode		-
+
+_wtempnam		- (tmpnam -> GetTempFileName)
+
+mbstowcs		-
+setlocale		-
+
+
+File Handling
+---------------
+
+_fullpath		GetFullPathName
+https://github.com/tronkko/dirent/blob/master/include/dirent.h
+
+_wmkdir
+_wrmdir
+_wremove
+_wstat
+
+
+
+Process and Environment Control Routines
+----------------------------------------------
+abort			-
+clearerr		-
+exit			ExitProcess
+signal			SetConsoleCtrlHandler (ctrl-c only)
+getenv			GetEnvironmentVariable
+_onexit			-
+_getpid			GetCurrentProcessId
+_cexit			-
+
+
+Stream Routines
+-------------------
+fclose			CloseHandle
+feof			-
+ferror			-
+fflush			FlushFileBuffers
+fprintf			-
+fread			ReadFile
+fseek			SetFilePointer
+ftell			SetFilePointer (check return value)
+fwrite			WriteFile
+sprintf			wsprintf
+vfprintf		-
+_vsnprintf		-
+_vsnwprintf		-
+setbuf			-
+_fileno			-
+
+
+Memory Handling
+--------------------
+free			GlobalFree
+malloc			GlobalAlloc
+calloc			GlobalAlloc
+memcpy			CopyMemory
+memset			FillMemory, ZeroMemory
+
+
+String Manipulation
+---------------------
+strcat			lstrcat
+strchr			-
+strcmp			lstrcmp
+strcpy			lstrcpy
+strlen			lstrlen
+strncat			-
+strncmp			-
+strncpy			-
+strrchr			-
+strtok			-
+wcscat			lstrcat
+wcscmp			lstrcmp
+wcscpy			lstrcpy
+wcslen			lstrlen
+_strdup			-
