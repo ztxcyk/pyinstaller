@@ -57,62 +57,148 @@ scp build-darwin-sdk:/tmp/osxcross.tar.bz2 macOSX/
 vagrant destroy -f build-darwin-sdk
 
 
-Cross compilering for target OSX
-==================================
-
-Preperation: Get SDK and build tools
-
-----------------------------------------
-This uses the very helpful tools from OSXcross
-https://github.com/tpoechtrager/osxcross
 
 
-# these are typically installed already on a GNU/Linux system
-apt-get install -y cmake make sed kmod
-apt-get install -y git fuse clang
-# requirements for darling-dmg (not listed in tools/get_dependencies.sh)
-apt-get libxml2-dev libicu-dev libssl-dev libbz2-dev libfuse-dev
+# self-elevation from https://superuser.com/questions/108207
+ELEVATE_POWERSHELL = <<EOS
+param([switch]$Elevated)
+
+function Test-Admin {
+  $currentUser = New-Object Security.Principal.WindowsPrincipal $([Security.Principal.WindowsIdentity]::GetCurrent())
+  $currentUser.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
+}
+if ((Test-Admin) -eq $false)  {
+    if ($elevated) {
+      # tried to elevate, did not work, aborting
+    } else {
+        "elevating"
+        Start-Process powershell.exe -Verb RunAs -ArgumentList ('-noprofile -noexit -file "{0}" -elevated' -f ($myinvocation.MyCommand.Definition))
+    }
+    exit
+}
+"running with full privileges"
+EOS
+#    #{ELEVATE_POWERSHELL}
 
 
-git clone --depth 1 https://github.com/tpoechtrager/osxcross.git
-cd osxcross
+Visual C++ SDK paketieren
+-----------------------------
 
-# install requirements for cctools
-sudo tools/get_dependencies.sh
+Hintergrund (unsortiert):
+- https://fedoraproject.org/wiki/Vagrant
+- https://github.com/ambakshi/docker-wine-vcpython27
+- https://developer.fedoraproject.org/tools/vagrant/
 
-sudo mkdir /opt/osxcross
-chown vagrant: /opt/osxcross
-sed -i 's!^TARGET_DIR=.*!TARGET_DIR=/opt/osxcross!' tools/tools.sh
-
-PATH=$PATH:/sbin:/usr/sbin
-./tools/gen_sdk_package_darling_dmg.sh /vagrant/macos/Xcode_7.3.1.dmg
-
-mv MacOSX*.tar.* tarballs/
-
-UNATTENDED=1 ./build.sh
-
-~/osxcross/target -> Archiv, Archiv auf nächter VM installieren
+http://ooo-imath.sourceforge.net/wiki/index.php/Cross-compiling_for_Windows
 
 
-Building the Bootloader
-------------------------------
-
-PATH=~/osxcross/target/bin/:$PATH
-python ./waf CC=x86_64-apple-darwin15-clang all
-
-Verifying results
-------------------------
+Andere Ansätze:
+- https://github.com/ehsan/msvc2013onwine
+- https://rgithub.com/ambakshi/docker-wine-vcpython27/dev/ISOs/toolchain2013.py
 
 
-alias otool=/vagrant/osxcross/bin/x86_64-apple-darwin15-otool
-cd /vagrant/PyInstaller/bootloader/
-for i in Darwin-*bit/{run,runw,run_d,runw_d} ; do
-	otool -aSfhlLDtdOrITRMHGCPvV $i > $i.txt
-	# -q -Q
-done
+    $packing_url = "https://raw.githubusercontent.com/ehsan/msvc2013onwine/master/package_from_installed.py"
 
-ausserhalb:
-vagrant scp 'darwin64:/vagrant/PyInstaller/bootloader/Darwin-*bit/' /tmp
+    $packing_url = "https://cs.chromium.org/codesearch/f/chromium/tools/depot_tools/win_toolchain/package_from_installed.py?cl=4b73b02b36238fe6c8e71b647b0e1367c9ead9cc"
+
+    choco install -y vcbuildtools -ia "/InstallSelectableItems VisualCppBuildTools_ATLMFC_SDK;Win10SDK_VisibleV1;Win81SDK_CppBuildSKUV1"
+
+    "Install script for packaging VC++"
+    $wc = New-Object System.Net.WebClient
+    $wc.DownloadFile($packing_url, "$PWD\\package_from_installed.py")
+    # create a dummy module which is required by package_from_installed.py
+    #New-Item -ItemType file -Path "$PWD\\get_toolchain_if_necessary.py"
+
+
+curl -o get_toolchain_if_necessary.py https://cs.chromium.org/codesearch/f/chromium/tools/depot_tools/win_toolchain/get_toolchain_if_necessary.py?cl=HEAD
+
+
+    "Create dummy directories for package_from_installed.py"
+    # package_from_installed.py expects these directories to exist.
+    cd "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0"
+    FIXME: Use mkdir:
+    mkdir "DIA SDK" | Out-Null
+    mkdir "DIA SDK\\bin" | Out-Null
+    mkdir "DIA SDK\\idl" | Out-Null
+    mkdir "DIA SDK\\lib" | Out-Null
+    mkdir "DIA SDK\\include" | Out-Null
+
+
+def build_windows_sdk(version)
+  # FIXME: Find the installed version automatically in
+  # C:\Program Files (x86)\Windows Kits\10\Include\
+  winver = "10.0.10240.0"
+  return <<-EOF
+    cd Desktop
+    echo 'def CalculateHash(a,b): return "out"' > get_toolchain_if_necessary.py
+    c:/Python27/Python.exe package_from_installed.py --winver #{winver} #{version}
+    cmd.exe /c copy "out.zip" "C:\\vagrant\\vs#{version}.zip"
+  EOF
+end
+
+TODO:
+* Versuchen, ob wir SDK und ATLMFC für PyInstaller brauchen (These: nein)
+* Unnötiges aus zip-Archiv löschen, z.B. VC/redist/debug_noredits/*,
+  wins_sdk/{Catalogs,Debugger,DesignTime,Remote,Shortcuts,Source}, VC/*/Src/*
+
+
+Visual C++ in Wine laufen lassen
+---------------------------------------
+
+def packages_fedora
+  return <<-EOF
+    #dnf upgrade -y
+    sudo dnf install -y wine unzip wget
+
+    wget https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks
+    # unset DISPLAY to avoid dialog boxes
+    rm -rf ~/.wine
+    #DISPLAY= sh ./winetricks win8 #dotnet462
+    export WINEDEBUG=-all
+    WINEDLLOVERRIDES="mscoree,mshtml=" wineboot -u
+
+    wget https://www.python.org/ftp/python/3.5.3/python-3.5.3-embed-amd64.zip
+
+    mkdir ~/.wine/drive_c/Python35
+    cd ~/.wine/drive_c/Python35
+    unzip ~/python-3.5.3-embed-amd64.zip
+    cd ~
+
+    #cd /vagrant/bootloader/
+    #wine64 C:/Python35/python.exe ./waf configure
+
+	#wget https://www.python.org/ftp/python/2.7.13/python-2.7.13.amd64.msi
+	#wine64 msiexec /i python-2.7.13.amd64.msi
+	#wine64 c:/Python27/python.exe
+
+    wget https://aka.ms/vs/15/release/vs_community.exe
+    wine64 vs_community.exe --quiet --add Microsoft.VisualStudio.Component.VC.CLI.Support
+  EOF
+end
+
+
+  config.vm.define "fedora" do |b|
+    b.vm.box = "fedora/25-cloud-base"
+    # Using this URL will lead to a "File name too long" error
+    #b.vm.box_url = "https://ftp.halifax.rwth-aachen.de/fedora/linux/releases/"\
+    #           "25/CloudImages/x86_64/images/"\
+    #           "Fedora-Cloud-Base-Vagrant-25-1.3.x86_64.vagrant-virtualbox.box"
+    b.vm.provider :virtualbox do |v|
+      v.memory = 768
+    end
+    b.vm.provision "fix permissions", :type => :shell, :privileged => true,
+        # Allow some files to not be changed (e.g. due to directory layout)
+        :inline => "chown -R vagrant: /vagrant || true"
+    b.vm.provision "packages", :type => :shell, :inline => packages_fedora
+  end
+
+    b.vm.provision "build windows sdk", :type => :shell, :privileged => false,
+        :inline => build_windows_sdk("2015"),
+        :keep_color => true
+
+    b.vm.provision "packages windows", :type => :shell, :privileged => false,
+        :inline => packages_windows_sdk_chocolate("2015")
+
 
 
 ----------------------
@@ -151,7 +237,7 @@ The BorgBackup's Vagrantfile
 The BorgBackup's Vagrantfile uses rsync for shared folders to avoid
 any changes to leak back from the guest to the host. The machine, as
 provided by Microsoft does not include rsync. So the first "vagrant
-up" is bont to fail and you need to run "provision" as a separate step
+up" is bount to fail and you need to run "provision" as a separate step
 instead of passing "--provision" to "vagrant up". For this it installs
 Cygwin, a Cygwin-based SSH server, and rsync. Since the machine is set
 up for password authentication,
@@ -190,7 +276,21 @@ make -C libc
 
             ctx.env.append_value('LINKFLAGS', '-nostdlib')
             ctx.env.append_value('LINKFLAGS', '-Wl,--exclude-libs,msvcrt.a')
+
+            ctx.env.append_value('LINKFLAGS', '-static-libgcc')
+            ctx.env.append_value('LINKFLAGS', '-nostdlib')
+
 -Wl,-eWinMain
+
+
+
+Install-Optionen für Visual Studio 2017:
+
+* https://blogs.msdn.microsoft.com/vcblog/2016/11/16/introducing-the-visual-studio-build-tools/
+
+* https://docs.microsoft.com/en-us/visualstudio/install/use-command-line-parameters-to-install-visual-studio
+
+
 
 
 Funktionen aus msvcrt.dll
@@ -297,3 +397,79 @@ wcscmp			lstrcmp
 wcscpy			lstrcpy
 wcslen			lstrlen
 _strdup			-
+
+
+osxcorss
+------------------
+
+Zeug, das dort wohl aus dem SDK gelöscht werden kann
+
+    # Remove some stuff we don't need for PyInstaller first
+    sudo rm -rf target/SDK/tools/*/*dmg*
+    sudo rm -rf target/SDK/*.sdk/usr/share/man
+    sudo rm -rf target/SDK/*.sdk/usr/ lib,include /php
+    sudo rm -rf target/SDK/*.sdk/System/Library/Printers/
+    sudo rm -rf target/SDK/*.sdk/System/Library/PrivateFrameworks/
+    # indeed we do not need Python.Framework
+    sudo rm -rf target/SDK/*.sdk/System/Library/Frameworks/
+AGL
+AVKit
+AVFoundation
+Accelerate
+Python
+QTKit
+QuickTime
+AppleScript*
+Audio*
+Automator*
+Calendar*
+CloudKit
+Collaboration
+Contacts*
+CoreAudioKit
+CoreBluetooth
+CoreGraphics
+CoreImage
+CoreLocation
+CoreMIDI*
+CoreMedia*
+CoreTelephony
+CoreVideo
+CoreWLAN
+DVDPlayback
+DirectoryService
+DiscRecording*
+DiskArbit
+DrawSprocket
+EventKit
+ForceFeedback
+GameController
+GameKit
+Gameplay*
+GSS
+GLUT
+IOBluetooth*
+Image*
+InputMethodKit
+Installer*
+Java*
+Kerberos
+Kernel
+LDAP
+LatentSemantic*
+Media*
+Multipeer*
+NetFS
+OpenAL OpenCL OpenDirectory OpenGL PCSC
+OSAKit
+Photos*
+Ruby
+Scripting*
+Social
+SyncService
+TWAIN
+Tcl
+Tl
+Video*
+WebKit
+
