@@ -23,8 +23,6 @@ Directory Structure
 Build instructions
 ===============================
 
-See <http://pyinstaller.rtfd.io/en/latest/bootloader-building.html>.
-
 In short::
 
   ./waf all
@@ -32,6 +30,12 @@ In short::
 or for building a Linux Standard Base (LSB) compliant bootloader::
 
   ./waf --lsb all
+
+
+For more details, esp. about building for other target-platforms, please have
+read <http://pyinstaller.rtfd.io/en/latest/bootloader-building.html> (resp.
+the corresponsing file in the source: :file:`../doc/bootloader-building.rst`).
+
 
 
 Building for other platforms
@@ -77,6 +81,13 @@ requires two `Vagrant` plugins::
    enter the password. The box also uses `rsync`-type shared folders,
    which are not available prior to provisioning. This is why the
    first ``vagrant up`` will fail.
+
+Installing Cygwin to get the required unix-tools (esp. python)
+
+
+
+windows-cross (restricted)
+...............................
 
 Tested with MinGW-w64 from this archive: <https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win64/Personal%20Builds/mingw-builds/6.2.0/threads-posix/sjlj/x86_64-6.2.0-release-posix-sjlj-rt_v5-rev1.7z>
 
